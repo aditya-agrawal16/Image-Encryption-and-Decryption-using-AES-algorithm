@@ -1,20 +1,19 @@
-#!/usr/bin/env python
-# ----------------- Header Files ---------------------#
-
 from __future__ import division, print_function, unicode_literals
 
 import sys
 import random
 import argparse
 import logging
-from Tkinter import *
-import tkFileDialog
-import tkMessageBox
+from tkinter import *
+from tkinter import filedialog
+from tkinter import messagebox
 import os
-import PIL
+from PIL import ImageTk , Image
 from PIL import Image
 import math
 from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
 import hashlib
 import binascii
 import numpy as np
@@ -92,33 +91,38 @@ def level_one_encrypt(Imagename):
     prepared_image = prepare_message_image(message_image, size)
     ciphered_image = generate_ciphered_image(secret_image, prepared_image)
     ciphered_image.save("2-share_encrypt.jpeg")
+    secret_image.save("D:/testcase/secret.jpeg".encode('utf-8').decode(sys.stdout.encoding))
+    ciphered_image.save("D:/testcase/2-share_encrypt.jpeg".encode('utf-8').decode(sys.stdout.encoding))
+
 
 
 
 # -------------------- Construct Encrypted Image  ----------------#
 def construct_enc_image(ciphertext,relength,width,height):
     asciicipher = binascii.hexlify(ciphertext)
-    def replace_all(text, dic):
-        for i, j in dic.iteritems():
-            text = text.replace(i, j)
-        return text
+    def replace_all(texts, dict):
+        for i, j in dict.items():
+            text = texts.replace(i.encode("utf-8"), j.encode("utf-8"))
+        return text.decode("utf-8")
 
     # use replace function to replace ascii cipher characters with numbers
     reps = {'a':'1', 'b':'2', 'c':'3', 'd':'4', 'e':'5', 'f':'6', 'g':'7', 'h':'8', 'i':'9', 'j':'10', 'k':'11', 'l':'12', 'm':'13', 'n':'14', 'o':'15', 'p':'16', 'q':'17', 'r':'18', 's':'19', 't':'20', 'u':'21', 'v':'22', 'w':'23', 'x':'24', 'y':'25', 'z':'26'}
+
     asciiciphertxt = replace_all(asciicipher, reps)
 
         # construct encrypted image
     step = 3
     encimageone=[asciiciphertxt[i:i+step] for i in range(0, len(asciiciphertxt), step)]
        # if the last pixel RGB value is less than 3-digits, add a digit a 1
-    if int(encimageone[len(encimageone)-1]) < 100:
+    if int(encimageone[len(encimageone)-1], 16) < 100:
         encimageone[len(encimageone)-1] += "1"
         # check to see if we can divide the string into partitions of 3 digits.  if not, fill in with some garbage RGB values
     if len(encimageone) % 3 != 0:
         while (len(encimageone) % 3 != 0):
             encimageone.append("101")
 
-    encimagetwo=[(int(encimageone[int(i)]),int(encimageone[int(i+1)]),int(encimageone[int(i+2)])) for i in range(0, len(encimageone), step)]
+    encimagetwo = [(int(''.join(filter(str.isalnum, encimageone[i])), 16), int(''.join(filter(str.isalnum, encimageone[i + 1])), 16),int(''.join(filter(str.isalnum, encimageone[i + 2])), 16)) 
+    for i in range(0, len(encimageone), step)]
     print(len(encimagetwo))
     while (int(relength) != len(encimagetwo)):
         encimagetwo.pop()
@@ -165,12 +169,13 @@ def encrypt(imagename,password):
         plaintextstr = plaintextstr + "n"
 
     # encrypt plaintext
-    obj = AES.new(password, AES.MODE_CBC, 'This is an IV456')
-    ciphertext = obj.encrypt(plaintextstr)
+    obj = AES.new(password, AES.MODE_CBC)
+    plaintextcode = plaintextstr.encode("utf-8")
+    ciphertext = obj.encrypt(pad(plaintextcode, AES.block_size))
 
     # write ciphertext to file for analysis
     cipher_name = imagename + ".crypt"
-    g = open(cipher_name, 'w')
+    g = open(cipher_name, 'wb')
     g.write(ciphertext)
     construct_enc_image(ciphertext,relength,width,height)
     print("Visual Encryption done.......")
@@ -186,37 +191,64 @@ def decrypt(ciphername,password):
     secret_image = Image.open("secret.jpeg")
     ima = Image.open("2-share_encrypt.jpeg")
     new_image = generate_image_back(secret_image, ima)
-    new_image.save("2-share_decrypt.jpeg")
+    new_image.save("D:/testcase/2-share_decrypt.jpeg")
     print("2-share Decryption done....")
-    cipher = open(ciphername,'r')
+    cipher = open(ciphername,'rb')
     ciphertext = cipher.read()
 
     # decrypt ciphertext with password
-    obj2 = AES.new(password, AES.MODE_CBC, 'This is an IV456')
+    obj2 = AES.new(password,AES.MODE_CBC)
     decrypted = obj2.decrypt(ciphertext)
+    
+    #decrypted_str = decrypted.encode("utf-8")
+    
+    #decrypted = unpad(decrypted, AES.block_sizes)
+
 
     # parse the decrypted text back into integer string
-    decrypted = decrypted.replace("n","")
+    #decrypted = decrypted.decode("utf-8")
+
+    a1="n"
+    a11 = a1.encode("utf-8")
+    a2="w"
+    a21 = a2.encode("utf-8")
+    a3="h"
+    a31 = a3.encode("utf-8")
+   # a4=bytes("w")
+    a5=b""
+    a51 = a5
+
+    decrypted = decrypted.replace(a11,a51)
 
     # extract dimensions of images
-    newwidth = decrypted.split("w")[1]
-    newheight = decrypted.split("h")[1]
+    newwidth = decrypted.split(a21)[1]
+    newheight = decrypted.split(a31)[1]
 
-    # replace height and width with emptyspace in decrypted plaintext
-    heightr = "h" + str(newheight) + "h"
-    widthr = "w" + str(newwidth) + "w"
-    decrypted = decrypted.replace(heightr,"")
-    decrypted = decrypted.replace(widthr,"")
+    # replace height and width with empty space in decrypted plaintext
+    heightr = b"h" + newheight + b"h"
+    widthr = b"w" + newwidth + b"w"
+    decrypted = decrypted.replace(heightr, a51)
+    decrypted = decrypted.replace(widthr, a51)
 
     # reconstruct the list of RGB tuples from the decrypted plaintext
     step = 3
-    finaltextone=[decrypted[i:i+step] for i in range(0, len(decrypted), step)]
-    finaltexttwo=[(int(finaltextone[int(i)])-100,int(finaltextone[int(i+1)])-100,int(finaltextone[int(i+2)])-100) for i in range(0, len(finaltextone), step)]
+    finaltextone = [decrypted[i:i + step] for i in range(0, len(decrypted), step)]
+    finaltexttwo = []
+    
+    # convert the RGB tuples to integers (handling invalid literals)
+    for i in range(0, len(finaltextone), step):
+        try:
+            r = int(finaltextone[i]) - 100
+            g = int(finaltextone[i + 1]) - 100
+            b = int(finaltextone[i + 2]) - 100
+            finaltexttwo.append((r, g, b))
+        except ValueError:
+            pass
 
-    # reconstruct image from list of pixel RGB tuples
+    # reconstruct image from the list of pixel RGB tuples
     newim = Image.new("RGB", (int(newwidth), int(newheight)))
     newim.putdata(finaltexttwo)
-    newim.save("visual_decrypt.jpeg")
+    newim.save("D:/testcase/visual_decrypt.jpeg")
     print("Visual Decryption done......")
     
    
@@ -226,10 +258,10 @@ def decrypt(ciphername,password):
 # ---------------------
 
 def pass_alert():
-   tkMessageBox.showinfo("Password Alert","Please enter a password.")
+   messagebox.showinfo("Password Alert","Please enter a password.")
 
 def enc_success(imagename):
-   tkMessageBox.showinfo("Success","Encrypted Image: " + imagename)
+   messagebox.showinfo("Success","Encrypted Image: " + imagename)
 
 # image encrypt button event
 def image_open():
@@ -239,8 +271,8 @@ def image_open():
     if enc_pass == "":
         pass_alert()
     else:
-        password = hashlib.sha256(enc_pass).digest()
-        filename = tkFileDialog.askopenfilename()
+        password = hashlib.sha256(enc_pass.encode("utf-8")).digest()
+        filename = filedialog.askopenfilename()
         file_path_e = os.path.dirname(filename)
         encrypt(filename,password)
 
@@ -252,8 +284,8 @@ def cipher_open():
     if dec_pass == "":
         pass_alert()
     else:
-        password = hashlib.sha256(dec_pass).digest()
-        filename = tkFileDialog.askopenfilename()
+        password = hashlib.sha256(dec_pass.encode("utf-8")).digest()
+        filename = filedialog.askopenfilename()
         file_path_d = os.path.dirname(filename)
         decrypt(filename,password)
 
@@ -261,7 +293,7 @@ class App:
   def __init__(self, master):
     global passg
     title = "Image Encryption"
-    author = "Made by Aditya"
+    author = "Made by Vignesh"
     msgtitle = Message(master, text =title)
     msgtitle.config(font=('helvetica', 17, 'bold'), width=200)
     msgauthor = Message(master, text=author)
